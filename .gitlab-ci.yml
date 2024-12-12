@@ -1,0 +1,37 @@
+stages:
+  - build
+  - test
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+cache:
+  key: Cache
+  paths:
+    - .cache/pip
+    - venv/
+
+before_script:
+  - pip install virtualenv
+  - virtualenv venv
+  - source venv/bin/activate
+  - pip install -r requirements.txt
+
+build:
+  stage: build
+  image: python:3.9
+  script:
+    - python --version
+  artifacts:
+    paths:
+      - venv/
+    expire_in: 1 hour
+
+test:
+  stage: test
+  image: python:3.9
+  needs:
+    - job: build
+  script:
+    - export PYTHONPATH=$PYTHONPATH:.
+    - pytest
