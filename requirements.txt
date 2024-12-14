@@ -5,3 +5,8 @@ pytest
 pillow
 python-multipart
 httpx
+torch
+torchvision
+opencv-python
+einops
+timm

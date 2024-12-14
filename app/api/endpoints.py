@@ -1,7 +1,9 @@
 from fastapi import APIRouter, FastAPI, File, Form, UploadFile, HTTPException, Depends
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 from app.models.response_models import ResponseModel
-from PIL import Image
+from PIL import Image, ImageFilter
+import io
+import base64
 
 app = FastAPI()
 router = APIRouter()
@@ -24,9 +26,13 @@ async def get_response_format():
     }
     return JSONResponse(content=response_description)
 
+def process_image(image: Image.Image) -> Image.Image:
+    """Apply some processing (e.g., a filter) to the image."""
+    # Example: Applying a Gaussian Blur filter
+    return image.filter(ImageFilter.GaussianBlur(5))
+
 @router.post("/run/", 
-             summary="Process an uploaded image with a prompt",
-             response_model=ResponseModel)
+             summary="Process an uploaded image with a prompt")
 async def run_action(
     prompt: str = Form(...), 
     image: UploadFile = File(...) 
@@ -39,14 +45,24 @@ async def run_action(
 
     try:
         with Image.open(image.file) as image:
-            # Extract basic information from the image
-            width, height = image.size
-            image_format = image.format
+            # Process the image (for example, applying a filter)
+            processed_img = process_image(image)
 
-            # Generate a description of the image
-            description = f"The image is {width}x{height} pixels and is in {image_format} format."
+            # Convert the processed image to a byte array
+            img_byte_array = io.BytesIO()
+            processed_img.save(img_byte_array, format="PNG")
+            img_byte_array.seek(0)
 
-            return {"answer": description}
+            # Encode the processed image to base64
+            img_base64 = base64.b64encode(img_byte_array.getvalue()).decode("utf-8")
+            img_tag = f'<img src="data:image/png;base64,{img_base64}" />'
+
+            # Generate a description (based on the original image or prompt)
+            description = f"Processed image with applied filter: {prompt}"
+
+            # Return the processed image and description in HTML format
+            return HTMLResponse(content=f"<html><body>{img_tag}<br>{description}</body></html>")
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred: {e}")
 
