@@ -4,6 +4,9 @@ from app.models.response_models import ResponseModel
 from PIL import Image, ImageFilter
 import io
 import base64
+import os
+
+from app.models.denoiser import Denoiser
 
 app = FastAPI()
 router = APIRouter()
@@ -65,4 +68,35 @@ async def run_action(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred: {e}")
+    
+@router.post("/denoise/", summary="Available noise levels: 50, 25")
+async def denoise_image(image: UploadFile = File(...), noise_level: int = 50):
+    """
+    Endpoint to denoise an uploaded image.
+    :param image: The input image (uploaded file).
+    :param noise_level: The desired noise level for denoising (integer).
+    :return: The denoised image in grayscale.
+    """
+    try:
+        # Validate noise level
+        if noise_level not in [25, 50]:
+            return {
+                "error": "Invalid noise level. Please provide a valid noise level: 25 or 50."
+            }
 
+        # Open the uploaded image
+        with Image.open(image.file) as img:
+            # Create Denoiser instance and denoise image
+            denoiser = Denoiser(noise_level=noise_level)
+            denoised_img = denoiser.denoise(img)
+
+            # Save the denoised image
+            output_path = os.path.join('outputs', f'{image.filename}_{noise_level}_out.png')
+            denoised_img.save(output_path, format='PNG')
+
+            return {
+                "message": "Image denoised successfully!",
+                "output_path": output_path
+            }
+    except Exception as e:
+        return {"error": str(e)}
