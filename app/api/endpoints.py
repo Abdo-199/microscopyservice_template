@@ -7,6 +7,7 @@ import base64
 import os
 
 from app.models.denoiser import Denoiser
+from app.models.utils import is_high_quality
 
 app = FastAPI()
 router = APIRouter()
@@ -35,42 +36,11 @@ def process_image(image: Image.Image) -> Image.Image:
     return image.filter(ImageFilter.GaussianBlur(5))
 
 @router.post("/run/", 
-             summary="Process an uploaded image with a prompt")
+             summary="Available noise levels: 50, 25")
 async def run_action(
-    prompt: str = Form(...), 
-    image: UploadFile = File(...) 
+    image: UploadFile = File(...), 
+    noise_level: int = 50
 ):
-    """
-    Provide a textual description of the uploaded image, incorporating information from a provided prompt.
-    """
-    if not image.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="File type not supported")
-
-    try:
-        with Image.open(image.file) as image:
-            # Process the image (for example, applying a filter)
-            processed_img = process_image(image)
-
-            # Convert the processed image to a byte array
-            img_byte_array = io.BytesIO()
-            processed_img.save(img_byte_array, format="PNG")
-            img_byte_array.seek(0)
-
-            # Encode the processed image to base64
-            img_base64 = base64.b64encode(img_byte_array.getvalue()).decode("utf-8")
-            img_tag = f'<img src="data:image/png;base64,{img_base64}" />'
-
-            # Generate a description (based on the original image or prompt)
-            description = f"Processed image with applied filter: {prompt}"
-
-            # Return the processed image and description in HTML format
-            return HTMLResponse(content=f"<html><body>{img_tag}<br>{description}</body></html>")
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"An error occurred: {e}")
-    
-@router.post("/denoise/", summary="Available noise levels: 50, 25")
-async def denoise_image(image: UploadFile = File(...), noise_level: int = 50):
     """
     Endpoint to denoise an uploaded image.
     :param image: The input image (uploaded file).
@@ -90,12 +60,14 @@ async def denoise_image(image: UploadFile = File(...), noise_level: int = 50):
             denoiser = Denoiser(noise_level=noise_level)
             denoised_img = denoiser.denoise(img)
 
+            is_good_quality = is_high_quality(denoised_img)
+
             # Save the denoised image
             output_path = os.path.join('outputs', f'{image.filename}_{noise_level}_out.png')
             denoised_img.save(output_path, format='PNG')
 
             return {
-                "message": "Image denoised successfully!",
+                "message": f"the clarity of the denoised image is considered {'good' if is_good_quality else 'bad'}",
                 "output_path": output_path
             }
     except Exception as e:

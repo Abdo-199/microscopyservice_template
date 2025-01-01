@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from PIL import Image
+from PIL import Image, ImageEnhance, ImageFilter, ImageStat
 
 def uint2single(img):
     return np.float32(img / 255.0)
@@ -21,3 +21,20 @@ def pil2unit(image: Image.Image):
     img_array = np.array(image.convert('L'), dtype=np.uint8)
     img_array = np.expand_dims(img_array, axis=2)
     return img_array
+
+def is_high_quality(img, resolution_threshold=100000, clarity_threshold=50):
+
+    # Check resolution
+    width, height = img.size
+    if width * height < resolution_threshold:
+        return False
+
+    # Check clarity
+    img_gray = img.convert('L')
+    sharpness = ImageEnhance.Sharpness(img_gray).enhance(3.0).filter(ImageFilter.FIND_EDGES)
+    image_clarity = sharpness.convert('L')
+    image_var = ImageStat.Stat(image_clarity).stddev[0]
+    if image_var < clarity_threshold:
+        return False
+
+    return True
