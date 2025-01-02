@@ -21,26 +21,34 @@ def test_run_action_success():
     # Prepare the image data
     image_data = create_test_image()
     
+    # Send a valid request to the /run/ endpoint
     response = client.post(
         "/run/",
-        data={"prompt": "Describe this image"},
-        files={"image": ("test_image.jpg", image_data, "image/jpeg")}
+        files={"image": ("test_image.jpg", image_data, "image/jpeg")},
+        data={"noise_level": 25}
     )
+    
+    # Assert that the response is successful
     assert response.status_code == 200
+    
+    # Validate response content
     json_response = response.json()
-    assert "answer" in json_response
-    # add your own tests here
-    # assert json_response["answer"] == "The image is 100x100 pixels and is in JPEG format."
+    assert "clarity" in json_response
+    assert "output_path" in json_response
+    
+    # Additional validation
+    assert json_response["clarity"] in ["good", "bad"]
+    assert json_response["output_path"].endswith("_out.png")
 
 def test_run_action_unsupported_file_type():
     response = client.post(
         "/run/",
         files={"image": ("test_image.txt", b"fake text data", "text/plain")},
-        data={"prompt": "Describe this text"}
+        data={"noise_level": 25}
     )
     
     assert response.status_code == 400
-    assert response.json()["detail"] == "File type not supported"
+    assert response.json()["detail"] == "Only PNG and JPEG images are supported."
 
 def test_run_action_missing_prompt():
     # Create a test image
@@ -48,11 +56,12 @@ def test_run_action_missing_prompt():
     
     response = client.post(
         "/run/",
-        files={"image": ("test_image.jpg", image_data, "image/jpeg")}
+        files={"image": ("test_image.jpg", image_data, "image/jpeg")},
+        data={"noise_level":70}
     )
     
-    assert response.status_code == 422
-    assert "value_error.missing" in str(response.json())
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid noise level. Please provide a valid noise level: 25 or 50."
 
 def test_run_action_processing_failure():
     # Simulate a corrupted image file
@@ -61,7 +70,7 @@ def test_run_action_processing_failure():
     response = client.post(
         "/run/",
         files={"image": ("broken_image.jpg", broken_image_data, "image/jpeg")},
-        data={"prompt": "Describe this broken image"}
+        data={"noise_level": 25}
     )
     
     assert response.status_code == 500

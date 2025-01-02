@@ -17,7 +17,7 @@ async def get_service_description():
     """
     Provides a brief description of the service.
     """
-    return {"description": "This microservice provides a textual description of uploaded images with an optional prompt."}
+    return {"description": "This microservice denoises the gray scale SEM images with two available noise levels ('25' for moderate noise, and '50' for images with more extreme noise)."}
 
 @router.get("/response-format/", summary="Get Run Action Response Format")
 async def get_response_format():
@@ -26,7 +26,7 @@ async def get_response_format():
     """
     response_description = {
         "content_type": "application/json",
-        "description": "The response is a JSON object containing a textual description of the image and additional information based on the provided prompt."
+        "description": "The response is a JSON object containing a clarity assesment of the resault image and the path of the denoised image."
     }
     return JSONResponse(content=response_description)
 
@@ -47,12 +47,16 @@ async def run_action(
     :param noise_level: The desired noise level for denoising (integer).
     :return: The denoised image in grayscale.
     """
+    if noise_level is None:
+        raise HTTPException(status_code=422, detail="value_error.missing")
+    # Validate noise level
+    if noise_level not in [25, 50]:
+        raise HTTPException(status_code=400, detail="Invalid noise level. Please provide a valid noise level: 25 or 50.")
+    
+    # Validate file type
+    if image.content_type not in ["image/png", "image/jpeg"]:
+        raise HTTPException(status_code=400, detail="Only PNG and JPEG images are supported.")
     try:
-        # Validate noise level
-        if noise_level not in [25, 50]:
-            return {
-                "error": "Invalid noise level. Please provide a valid noise level: 25 or 50."
-            }
 
         # Open the uploaded image
         with Image.open(image.file) as img:
@@ -64,11 +68,14 @@ async def run_action(
 
             # Save the denoised image
             output_path = os.path.join('outputs', f'{image.filename}_{noise_level}_out.png')
+            os.makedirs('outputs', exist_ok=True)
             denoised_img.save(output_path, format='PNG')
 
             return {
-                "message": f"the clarity of the denoised image is considered {'good' if is_good_quality else 'bad'}",
-                "output_path": output_path
+                "clarity": "good" if is_good_quality else "bad",
+                "output_path": str(output_path)
             }
+    except (IOError, ValueError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail="An unexpected error occurred.")

@@ -30,6 +30,9 @@ PYTHONPATH=. pytest tests/
 
 Outline the API implemented. Try to stick to the API of the template as best as possible (it might be not perfect).
 
+## model evaluation
+Navigate to the directory 'evaluate' to find the notebook and the model testing setup.
+
 ## Model documentation
 
 All details about the model and related data can be found in the [model card](MODELCARD.md).
